@@ -13,9 +13,7 @@ from sklearn.svm import SVC as SVC
 # LabelEncoder   -> We will need to convert the feature 'label" into a numeric
 # MinMaxScaler   -> We will need to normalize numeric features into a fix range [0,1] (ONLY USE ON NN)
 # StandardScaler -> We will need to normalize numeric features into a fix range 
-from sklearn.preprocessing import LabelEncoder
-from sklearn.preprocessing import StandardScaler
-from sklearn.preprocessing import OneHotEncoder
+from sklearn.preprocessing import MinMaxScaler
 from sklearn.decomposition import PCA
 
 # Maybe consider this?
@@ -71,7 +69,7 @@ to_drop = [c for c in tri_df.columns if any(tri_df[c] >= 0.9)]
 #print(to_drop)
 
 df_removed = df.drop(columns=to_drop, axis=1)
-#print(df.shape)
+print(df.shape)
 #print(df_removed.shape)
 
 """
@@ -105,63 +103,49 @@ target_filtered_data = target[~target.index.isin(outlier.index)]
 #print(target_filtered_data.shape)
 df_filtered = feature_filtered_data.loc[:, (feature_filtered_data != 0).any(axis=0)].copy()
 df_filtered.loc[:, 'label'] = target_filtered_data
-print(df_filtered.shape)
+df = pd.DataFrame(df_filtered)
+print(df.shape)
 
 """
-    Usage of PCA
-"""
-
-
-"""
-    Check if any binary variables
-"""
-for col in df_removed.columns:
-    unique_vals = df[col].dropna().unique()
-    if len(unique_vals) == 2:
-        print(f"Binary variable candidate: '{col}' --> {unique_vals}")
-"""
-    Our targets are binary: [benign, malicious]
-
-    Our features are all numeric.
-"""
-
-"""
-    All features are numeric.
+    Splitting data
 """
 X = df.drop('label', axis=1)
 y = df['label']
 
-# Maybe we should do this in the beginning????
 X_train, X_test, y_train, y_test = TTS(X, y, test_size=0.2, random_state=42)
 
+"""
+    Data normalization
 
-# X2 = df.drop('label', axis=1)
-# y2 = df['label']
+    Scaling/transforming targets only makes sense if you are doing regression and the
+    target is continuous
 
+    Since we are dealing with binary classification:
+        0 for benign,
+        1 for malicious
+    We do not scale them.
+"""
+scaler = MinMaxScaler()
+X_train_scaled = scaler.fit_transform(X_train)
+X_test_scaled = scaler.transform(X_test)
+# scalar returned a NumPy array to df_scaled, so we need to make it in a DataFrame
+X_train = pd.DataFrame(X_train_scaled, columns=X_train.columns, index=X_train.index)
+X_test = pd.DataFrame(X_test_scaled, columns=X_test.columns, index=X_test.index)
 
-# X_train, X_test, y_train, y_test = TTS(X, y, test_size=0.2, random_state=42)
+"""
+    PCA
+"""
+pca = PCA(n_components=0.95)
+pca = pca.fit(X_train)
+X_train_reduced = pca.transform(X_train)
 
-# # Targets are not numeric
-# LE = LabelEncoder()
-# y_train_encoded = LE.fit_transform(y_train)
-# y_test_encoded = LE.transform(y_test)
+pca = pca.fit(X_test)
+X_test_reduced = pca.transform(X_test)
 
-# # For Professor to look at statistical summary
-# # Statistical summary
-# print('Spoofing dataset:\n')
-# print('Total samples:', len(df))
-# print('Training samples:', len(X_train))
-# print('Testing samples:', len(X_test))
-# print('Number of features:', X.shape[1])
-# print('\nFeature Statistics:\n', X.describe())
-# print('\nClass distribution (full datasets):\n', y.value_counts())
-# print('Number of targets:', y.shape[0])
+print("Number of original features is {} and of reduced features is {}".format(X_train.shape[1], X_train_reduced.shape[1]))
+print("Number of original features is {} and of reduced features is {}".format(X_test.shape[1], X_test_reduced.shape[1]))
 
-# print('\nJamming dataset:\n')
-# print('Total samples:', len(df2))
-# print('Number of features:', X2.shape[1])
-# print('\nFeature Statistics:\n', X2.describe())
-# print('\nClass distribution (full datasets):\n', y2.value_counts())
-# print('Number of targets:', y2.shape[0])
+"""
+    Evaluation and Deployment
+"""
 
-# Data preprocessing
