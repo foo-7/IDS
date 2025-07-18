@@ -1,5 +1,6 @@
 # IDS
 Intrusion Detection System. Using ML models to create IDS. Research under Professor Torre. T CSS 499
+Please create a virtual environment. 
 
 # To create a virtual environment
 python -m venv venv

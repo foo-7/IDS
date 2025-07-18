@@ -10,3 +10,6 @@ __pycache__/
 *.pyo
 *.pdc
 *.pdbvenv/
+
+# Ignore Excel files
+.csv
