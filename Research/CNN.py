@@ -29,7 +29,7 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 """
     Data preprocessing
 """
-fileName1 = "jamming-merged-gps-only.csv"  # Highest Accuracy: 90
+fileName1 = "jamming-merged-gps-only.csv"  # Highest Accuracy: 78.80%
 fileName2 = "spoofing-merged-gps-only.csv" # Highest Accuracy: 90.15%
 DP = DataPreprocess(fileName1)
 df = DP.run(givenTargets={'benign' : 0, 'malicious' : 1}, targetName='label')
