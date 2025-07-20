@@ -87,7 +87,7 @@ class Net(nn.Module):
 
         # Unconventional, but I don't know what input to have for the first dense layer.
         fc1_input_size = x.view(x.size(0), -1).size(1)
-        self.fc1 = nn.Linear(fc1_input_size, 120)
+        self.fc1 = nn.Linear(fc1_input_size, 128)
         self.fc1 = self.fc1.to(x.device)
 
         # view() flattens your tensor from multi-dimensional to 2D
