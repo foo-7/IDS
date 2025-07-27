@@ -113,9 +113,6 @@ class CNN_Model(nn.Module):
                     if val_accuracy > best_accuracy:
                         best_accuracy = val_accuracy
                         self.save_model()
-                    else:
-                        print('[WARNING] Please provide validation dataset in order to save the best parameters for CNN model.')
-
 
                 if epoch % 100 == 0:
                     current_lr = self.optimizer.param_groups[0]['lr']
@@ -128,6 +125,9 @@ class CNN_Model(nn.Module):
                             f'Validation loss: {val_loss:.10f} | '
                     print(output_string)
             
+            if not validation_loader:
+                print('[WARNING] Please provide validation dataset in order to save the best parameters for CNN model.')
+                
         else:
             raise ValueError(f'[ERROR] Expected train dataset to be passed on train_model function call, try again')
 
