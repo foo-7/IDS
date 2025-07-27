@@ -17,7 +17,7 @@ import pandas as pd
 from sklearn.preprocessing import MinMaxScaler
 from sklearn.model_selection import train_test_split as TTS
 from DataPreprocess import DataPreprocess
-from OldNet import OldNet
+from Research.Old_Model_disregard.OldNet import OldNet
 
 from torch.utils.data import TensorDataset, DataLoader
 
