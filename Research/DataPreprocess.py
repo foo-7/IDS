@@ -25,7 +25,7 @@ class DataPreprocess():
 
         self.__df = pd.read_csv(fileName)
 
-    def run(self, givenTargets: dict[str, int] | None = None, targetName: str | None = None) -> pd.DataFrame:
+    def run(self, *, givenTargets: dict[str, int] | None = None, targetName: str | None = None) -> pd.DataFrame:
         """
         Runs the entire program to clean the data.
 

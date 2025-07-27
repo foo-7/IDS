@@ -17,7 +17,7 @@ import pandas as pd
 from sklearn.preprocessing import MinMaxScaler
 from sklearn.model_selection import train_test_split as TTS
 from DataPreprocess import DataPreprocess
-from Net import Net
+from OldNet import OldNet
 
 from torch.utils.data import TensorDataset, DataLoader
 
@@ -31,7 +31,7 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 """
 fileName1 = "jamming-merged-gps-only.csv"  # Highest Accuracy: 78.80%
 fileName2 = "spoofing-merged-gps-only.csv" # Highest Accuracy: 90.15%
-DP = DataPreprocess(fileName1)
+DP = DataPreprocess(fileName2)
 df = DP.run(givenTargets={'benign' : 0, 'malicious' : 1}, targetName='label')
 
 X = df.drop(columns='label')
@@ -48,8 +48,8 @@ X_train = pd.DataFrame(X_train_scaled, columns=X_train.columns, index=X_train.in
 X_test = pd.DataFrame(X_test_scaled, columns=X_test.columns, index=X_test.index)
 
 # Since we are dealing with binary classification wth BCE loss, it should be floats and not integers
-X_train_tensor = torch.tensor(X_train_scaled, dtype=torch.float32)
-X_test_tensor = torch.tensor(X_test_scaled, dtype=torch.float32)
+X_train_tensor = torch.tensor(X_train.values, dtype=torch.float32)
+X_test_tensor = torch.tensor(X_test.values, dtype=torch.float32)
 y_train_tensor = torch.tensor(y_train.values, dtype=torch.float32)
 y_test_tensor = torch.tensor(y_test.values, dtype=torch.float32)
 
@@ -65,7 +65,7 @@ learning_rate = 0.01
 momentum = 0.5
 log_interval = 10
 
-network = Net().to(device)
+network = OldNet().to(device)
 optimizer = optim.SGD(network.parameters(), lr=learning_rate, momentum=momentum)
 
 """
