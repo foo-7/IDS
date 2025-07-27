@@ -62,7 +62,6 @@ class CNN_Model(nn.Module):
                 self.train()
                 train_loss = 0.
                 correct = total = best_accuracy = 0
-                best_model_path = 'IDS_CNN_BEST.pth'
 
                 for inputs, targets in train_loader:
                     # To GPU
@@ -127,7 +126,7 @@ class CNN_Model(nn.Module):
             
             if not validation_loader:
                 print('[WARNING] Please provide validation dataset in order to save the best parameters for CNN model.')
-                
+
         else:
             raise ValueError(f'[ERROR] Expected train dataset to be passed on train_model function call, try again')
 
