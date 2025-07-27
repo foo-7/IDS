@@ -3,7 +3,7 @@ import torch.nn as nn
 
 class CNN_Model(nn.Module):
 
-    def __init__(self, input_length):
+    def __init__(self, input_length: int) -> None:
         super().__init__()
         self.cnn_layers = nn.Sequential(
             nn.Conv1d(in_channels=1, out_channels=32, kernel_size=3),
@@ -44,12 +44,16 @@ class CNN_Model(nn.Module):
         self.loss_function = nn.BCELoss()
         self.device_location = ("cuda" if torch.cuda.is_available() else "cpu")
 
-    def forward(self, x):
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
         x = self.cnn_layers(x)
         x = self.dense_layers(x)
         return torch.sigmoid(x)
     
-    def train_model(self, *, train_loader, validation_loader, epochs=100):
+    def train_model(self, *, 
+        train_loader: torch.utils.data.DataLoader, 
+        validation_loader: torch.utils.data.DataLoader | None = None, 
+        epochs: int | None = 100
+    ) -> None:
         device = next(self.parameters()).device
         self.to(self.device_location)
 
@@ -127,7 +131,7 @@ class CNN_Model(nn.Module):
         else:
             raise ValueError(f'[ERROR] Expected train dataset to be passed on train_model function call, try again')
 
-    def test_model(self, test_loader):
+    def test_model(self, test_loader: torch.utils.data.DataLoader) -> None:
         if test_loader:
             try:
                 self.load_model()
@@ -158,13 +162,13 @@ class CNN_Model(nn.Module):
         else:
             raise ValueError(f'[ERROR] Expected test dataset to be passed on test_model function call, try again')
         
-    def load_model(self):
+    def load_model(self) -> None:
         path = 'IDS_CNN_BEST.pth'
         self.load_state_dict(torch.load('IDS_CNN_BEST.pth', map_location=self.device_location))
         self.eval()
         print(f'[LOAD INFO]: Model loaded from {path}')
 
-    def save_model(self):
+    def save_model(self) -> None:
         path = 'IDS_CNN_BEST.pth'
         torch.save(self.state_dict(), path)
         #print(f'[SAVE INFO]: Model saved to {path}')
