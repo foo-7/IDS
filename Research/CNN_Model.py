@@ -2,8 +2,30 @@ import torch
 import torch.nn as nn
 
 class CNN_Model(nn.Module):
+    """
+    CNN for intrusion detection. CNN focuses on binary classification. The model consists
+    of two convolution layers and two dense layers.
+
+    Author:
+        Noah Ogilvie
+
+    Version:
+        2.0.0
+    """
 
     def __init__(self, input_length: int) -> None:
+        """
+        Initializes the CNN model.
+
+        It initializes the following:
+            - Convolution and pooling layers to extract features
+            - Dense layers for classification
+            - Adam optimizer and binary cross-entropy loss.
+            - Device to use (CUDA if available, else CPU)
+
+        Args:
+            input_length (int): The lenght of the 1D input signal.
+        """
         super().__init__()
         self.cnn_layers = nn.Sequential(
             nn.Conv1d(in_channels=1, out_channels=32, kernel_size=3),
@@ -44,24 +66,49 @@ class CNN_Model(nn.Module):
         self.loss_function = nn.BCELoss()
         self.device_location = ("cuda" if torch.cuda.is_available() else "cpu")
 
+    #__init__.__doc__ += nn.Module.__init__.__doc or ""
+
     def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """
+        Forward pass for this CNN model.
+
+        This implementation applies CNN layers followed by dense layers and uses
+        a sigmoid activation.
+
+        Args:
+            x (torch.Tensor): The input tensor.
+
+        Returns:
+            torch.Tensor: Output tensor with sigmoid applied.
+        """
         x = self.cnn_layers(x)
         x = self.dense_layers(x)
         return torch.sigmoid(x)
+    
+    #forward.__doc__ = nn.Model.forward.__doc__
     
     def train_model(self, *, 
         train_loader: torch.utils.data.DataLoader, 
         validation_loader: torch.utils.data.DataLoader | None = None, 
         epochs: int | None = 100
     ) -> None:
-        device = next(self.parameters()).device
+        """
+        To train the model using the provided datasets.
+
+        Args:
+            train_loader (torch.utils.data.DataLoader): The training dataset
+            validation_loader (torch.utils.data.DataLoader): The validation datset. Defaults to none.
+            epochs (int): The amount of complete pass through the training dataset to train the model.
+        """
+
         self.to(self.device_location)
+        best_accuracy = 0
 
         if train_loader:
             for epoch in range(1, epochs+1):
                 self.train()
                 train_loss = 0.
-                correct = total = best_accuracy = 0
+                correct = total = 0
 
                 for inputs, targets in train_loader:
                     # To GPU
@@ -131,6 +178,12 @@ class CNN_Model(nn.Module):
             raise ValueError(f'[ERROR] Expected train dataset to be passed on train_model function call, try again')
 
     def test_model(self, test_loader: torch.utils.data.DataLoader) -> None:
+        """
+        To test the model.
+
+        Args:
+            test_loader (torch.utils.data.DataLoader): The test dataset
+        """
         if test_loader:
             try:
                 self.load_model()
@@ -162,12 +215,20 @@ class CNN_Model(nn.Module):
             raise ValueError(f'[ERROR] Expected test dataset to be passed on test_model function call, try again')
         
     def load_model(self) -> None:
+        """
+        Loads the model's parameters, usually used to load the best parameters.
+        """
+
         path = 'IDS_CNN_BEST.pth'
         self.load_state_dict(torch.load('IDS_CNN_BEST.pth', map_location=self.device_location))
         self.eval()
         print(f'[LOAD INFO]: Model loaded from {path}')
 
     def save_model(self) -> None:
+        """
+        Saves the model's parameters, usually used to save the best accuracy
+        """
+
         path = 'IDS_CNN_BEST.pth'
         torch.save(self.state_dict(), path)
         #print(f'[SAVE INFO]: Model saved to {path}')

@@ -9,17 +9,12 @@ from DataPreprocess import DataPreprocess
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-fileName1 = "jamming-merged-gps-only.csv"
-fileName2 = "spoofing-merged-gps-only.csv"
+fileName1 = "jamming-merged-gps-only.csv"       # 100% Accuracy
+fileName2 = "spoofing-merged-gps-only.csv"      # 100% Accuracy
+trainModel = True
 
-DP = DataPreprocess(fileName=fileName2)
-df = DP.run(
-    givenTargets={
-        'benign' : 0,
-        'malicious' : 1
-    },
-    targetName='label'
-)
+DP = DataPreprocess(fileName=fileName1)
+df = DP.runNew(targetName='label', targetToBinary=True)
 
 X = df.drop(columns='label')
 y = df['label']
@@ -61,10 +56,15 @@ Test_dataset = TensorDataset(X_test_tensor, y_test_tensor)
 Validation_dataset = TensorDataset(X_val_tensor, y_val_tensor)
 
 # Shuffle train data but not test and validation for consistent evaluation
+# There is also not a lot of samples provided by the dataset and became even smaller after
+# data cleaning, so it might be just memorizing. Need larger dataset
 Train_loader = DataLoader(Train_dataset, batch_size=64, shuffle=True, pin_memory=True)
 Test_loader = DataLoader(Test_dataset, batch_size=64, shuffle=False, pin_memory=True)
 Validation_loader = DataLoader(Validation_dataset, batch_size=64, shuffle=False, pin_memory=True)
 
 network = CNN(input_length=X_train_tensor.shape[2]).to(device)
-network.train_model(train_loader=Train_loader, validation_loader=Validation_loader, epochs=1000)
+if trainModel:
+    # NOITCE: epochs = 100 000 -> Seems like the model is overfitting. Neurons are memorizing data?
+    network.train_model(train_loader=Train_loader, validation_loader=Validation_loader, epochs=1000)
+
 network.test_model(test_loader=Test_loader)
