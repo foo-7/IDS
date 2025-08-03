@@ -19,8 +19,16 @@ df = DP.runNew(targetName='label', targetToBinary=True)
 X = df.drop(columns='label')
 y = df['label']
 
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
-X_train, X_val, y_train, y_val = train_test_split(X_train, y_train, test_size=0.25)
+corr_with_target = df.corr()['label'].drop('label').abs()
+leaking_features = corr_with_target[corr_with_target > 0.9].index.tolist()
+
+if leaking_features:
+    print(f"[LEAKAGE WARNING] Dropping features correlated with target > 0.9: {leaking_features}")
+else:
+    print("[LEAKAGE CHECK] No data leakage detected.")
+
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42, stratify=y)
+X_train, X_val, y_train, y_val = train_test_split(X_train, y_train, test_size=0.25, random_state=42, stratify=y_train)
 
 print('Train shape:', X_train.shape) # shape (972, 62)
 print('Validation shape:', X_val.shape) # shape (324, 62)
@@ -65,6 +73,6 @@ Validation_loader = DataLoader(Validation_dataset, batch_size=64, shuffle=False,
 network = CNN(input_length=X_train_tensor.shape[2]).to(device)
 if trainModel:
     # NOITCE: epochs = 100 000 -> Seems like the model is overfitting. Neurons are memorizing data?
-    network.train_model(train_loader=Train_loader, validation_loader=Validation_loader, epochs=1000)
+    network.train_model(train_loader=Train_loader, validation_loader=Validation_loader, epochs=10)
 
 network.test_model(test_loader=Test_loader)

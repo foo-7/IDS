@@ -24,30 +24,24 @@ print("y shape:", y.shape)
 X = df.drop(columns='class')
 y = df['class']
 
-print(y)
+corr_with_target = df.corr()['class'].drop('class').abs()
+leaking_features = corr_with_target[corr_with_target > 0.9].index.tolist()
 
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
-X_train, X_val, y_train, y_val = train_test_split(X_train, y_train, test_size=0.25)
+if leaking_features:
+    print(f"[LEAKAGE WARNING] Dropping features correlated with target > 0.9: {leaking_features}")
+else:
+    print("[LEAKAGE CHECK] No data leakage detected.")
 
-print("X_train dtypes:\n", X_train.dtypes)
-print("Unique y values:", y.unique())
-print("Any NaNs in X_train?", X_train.isna().sum().sum())
-
-print("Non-numeric columns:", X_train.select_dtypes(exclude=[float, int]).columns)
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42, stratify=y)
+X_train, X_val, y_train, y_val = train_test_split(X_train, y_train, test_size=0.25, random_state=42, stratify=y_train)
 
 print('Train shape:', X_train.shape)
 print('Validation shape:', X_val.shape)
 print('Test shape:', X_test.shape)
 
-print("Any NaNs in X_train?", X_train.isnull().any().any())
-print("Any NaNs in X_val?", X_val.isnull().any().any())
-print("Any NaNs in X_test?", X_test.isnull().any().any())
-
 scaler = StandardScaler()
 
-print("X_train type:", type(X_train))
 print("X_train shape:", X_train.shape)
-print("X_train head:\n", X_train.head())
 
 X_train_scaled = scaler.fit_transform(X_train)
 X_val_scaled = scaler.transform(X_val)
@@ -84,5 +78,5 @@ Test_loader = DataLoader(Test_dataset, batch_size=64, shuffle=False, pin_memory=
 Validation_loader = DataLoader(Validation_dataset, batch_size=64, shuffle=False, pin_memory=True)
 
 network = CNN(input_length=X_train_tensor.shape[2]).to(device)
-network.train_model(train_loader=Train_loader, validation_loader=Validation_loader, epochs=1000)
+network.train_model(train_loader=Train_loader, validation_loader=Validation_loader, epochs=10)
 network.test_model(test_loader=Test_loader)

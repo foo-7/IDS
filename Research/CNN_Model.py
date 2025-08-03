@@ -10,7 +10,10 @@ class CNN_Model(nn.Module):
         Noah Ogilvie
 
     Version:
-        2.0.0
+        2.0.1
+            - Added padding to convolution layers
+                => Prevent loss of edge information
+                => Allow more pooling/convolution layers to be added without changing the input size
     """
 
     def __init__(self, input_length: int) -> None:
@@ -28,11 +31,11 @@ class CNN_Model(nn.Module):
         """
         super().__init__()
         self.cnn_layers = nn.Sequential(
-            nn.Conv1d(in_channels=1, out_channels=32, kernel_size=3),
+            nn.Conv1d(in_channels=1, out_channels=32, kernel_size=3, padding=1),
             nn.ReLU(),
             nn.MaxPool1d(kernel_size=3),
 
-            nn.Conv1d(in_channels=32, out_channels=64, kernel_size=3),
+            nn.Conv1d(in_channels=32, out_channels=64, kernel_size=3, padding=1),
             nn.ReLU(),
             nn.MaxPool1d(kernel_size=3),
         )
@@ -90,7 +93,7 @@ class CNN_Model(nn.Module):
     def train_model(self, *, 
         train_loader: torch.utils.data.DataLoader, 
         validation_loader: torch.utils.data.DataLoader | None = None, 
-        epochs: int | None = 100
+        epochs: int | None = 10
     ) -> None:
         """
         To train the model using the provided datasets.
@@ -103,6 +106,7 @@ class CNN_Model(nn.Module):
 
         self.to(self.device_location)
         best_accuracy = 0
+        smallEpoch = True if epochs >= 10 else False
 
         if train_loader:
             for epoch in range(1, epochs+1):
@@ -126,7 +130,7 @@ class CNN_Model(nn.Module):
                     train_loss += loss.item() * inputs.size(0)
 
                     predicted = (output >= 0.5).float()
-                    correct += (predicted == targets).sum().item()
+                    correct += (predicted.eq(targets)).sum().item()
                     total += targets.size(0)
 
                 train_loss /= len(train_loader.dataset)
@@ -150,7 +154,7 @@ class CNN_Model(nn.Module):
                             val_loss += loss.item() * inputs.size(0)
 
                             predicted = (output >= 0.5).float()
-                            val_correct += (predicted == targets).sum().item()
+                            val_correct += (predicted.eq(targets)).sum().item()
                             val_total += targets.size(0)
 
                     val_loss /= len(validation_loader.dataset)
@@ -160,14 +164,14 @@ class CNN_Model(nn.Module):
                         best_accuracy = val_accuracy
                         self.save_model()
 
-                if epoch % 100 == 0:
+                if epoch % 10 == 0 or smallEpoch:
                     current_lr = self.optimizer.param_groups[0]['lr']
                     output_string = \
-                        f'[TRAIN INFO] Current epoch: {epoch} | Train accuracy: {accuracy:.3f} | ' + \
+                        f'[TRAIN INFO] Current epoch: {epoch} | Train accuracy: {accuracy:.5f} | ' + \
                         f'Train loss: {train_loss:.10f} | LR: {current_lr}'
                     if validation_loader:
                         output_string += \
-                            f' | Validation accuracy: {val_accuracy:.3f} | ' + \
+                            f' | Validation accuracy: {val_accuracy:.5f} | ' + \
                             f'Validation loss: {val_loss:.10f} | '
                     print(output_string)
             
@@ -204,12 +208,12 @@ class CNN_Model(nn.Module):
                     test_loss += loss.item() * inputs.size(0)
 
                     predicted = (output >= 0.5).float()
-                    correct += (predicted == targets).sum().item()
+                    correct += (predicted.eq(targets)).sum().item()
                     total += targets.size(0)
 
             test_loss /= len(test_loader.dataset)
             accuracy = correct / total
-            print(f'[TEST INFO] Accuracy: {accuracy:.3f} | Loss: {test_loss:.10f}')
+            print(f'[TEST INFO] Accuracy: {accuracy:.5f} | Loss: {test_loss:.10f}')
 
         else:
             raise ValueError(f'[ERROR] Expected test dataset to be passed on test_model function call, try again')

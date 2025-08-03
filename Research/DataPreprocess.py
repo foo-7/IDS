@@ -13,24 +13,29 @@ class DataPreprocess():
         1.5.0
     """
 
-    def __init__(self, fileName: str) -> None:
+    def __init__(self, fileName: str | None = None) -> None:
         """
         Initializes DataPreprocess
 
         Args:
             fileName (str): The file name
         """
-        if not fileName.endswith('.csv'):
+        if fileName and not fileName.endswith('.csv'):
             SystemError("Input an appropriate CSV file")
 
-        self.__df = pd.read_csv(fileName, low_memory=False)
+        elif fileName:
+            self.__df = pd.read_csv(fileName, low_memory=False)
+        else:
+            self.__df = pd.DataFrame()
 
     def runNew(
         self,
         *,
         targetName: str | None = None,
         featuresToBinary: bool = False,
-        targetToBinary: bool = False
+        targetToBinary: bool = False,
+        givenDF: pd.DataFrame | None = None,
+        normalBehavior: str | None = 'benign'
     ) -> pd.DataFrame:
         """
         Runs the entire program to clean the data.
@@ -43,6 +48,11 @@ class DataPreprocess():
         Returns:
             pd.DataFrame: The cleaned and filtered dataframe.
         """
+        if givenDF is not None:
+            self.__df = givenDF.copy()
+
+        if self.__df.empty:
+            raise ValueError('[ERROR] DataFrame is empty. Please check the input file.')
         
         if targetName is None:
             raise ValueError('[ERROR] targetName must be specified')
@@ -50,11 +60,15 @@ class DataPreprocess():
         if targetName not in self.__df.columns:
             raise KeyError('[ERROR] targetName not found in DataFrame columns')
         
-        dropThreshold = 0.9
+        dropThreshold = 0.95
+
+        print(f"[INFO] Initial dataset shape: {self.__df.shape}")
         
         self.__df = self.__df.dropna(axis=0)
         self.__df.drop_duplicates(keep='first', inplace=True)
         self.__df.reset_index(drop=True, inplace=True)
+
+        print(f"[INFO] Initial dataset shape after removing duplicates and NaNs: {self.__df.shape}")
 
         target = self.__df[targetName]
         features = self.__df.drop(columns=[targetName])
@@ -69,7 +83,7 @@ class DataPreprocess():
                 
                 else:
                     # Keep object for encoding later
-                    features[current] = features[current].astype(str)
+                    features[current] = features[current].astype('category').cat.codes
 
         # We will drop columns that are mostly NaN
         features = features.loc[:, features.notna().mean() > dropThreshold]
@@ -98,12 +112,17 @@ class DataPreprocess():
                 features = pd.concat([features] + encoded_parts, axis=1)
 
         if targetToBinary:
-            target = target.apply(lambda x: 0 if str(x).lower() == 'benign' else 1)
+            target = target.apply(lambda x: 0 if str(x).lower() == normalBehavior.lower() else 1)
 
         processed_df = pd.concat([features, target], axis=1)
+        processed_df = self.__remove_target_leakage(df=processed_df, targetName=targetName)
+
+        print(f"[INFO] Processed DataFrame shape: {processed_df.shape}")
 
         filtered_features = self.__remove_high_corr(targetName=targetName, df=processed_df)
         df_removed = pd.concat([filtered_features, processed_df[targetName]], axis=1)
+
+        print(f"[INFO] DataFrame shape after removing high correlation features: {df_removed.shape}")
 
         quantitative_data = df_removed.select_dtypes(include='number').copy()
         target = quantitative_data[targetName]
@@ -114,13 +133,18 @@ class DataPreprocess():
         df_filtered = filtered_features.copy()
         df_filtered[targetName] = filtered_target
 
+        print(f"[INFO] DataFrame shape after removing outliers: {df_filtered.shape}")
+
+        df_filtered = self.__remove_target_leakage(df=processed_df, targetName=targetName)
+
         if df_filtered.isnull().any().any():
             print("[WARNING] NaNs still present after filling! Dropping affected rows.")
             df_filtered.dropna(axis=0, inplace=True)
+            df_filtered.drop_duplicates(keep='first', inplace=True)
+            df_filtered.reset_index(drop=True, inplace=True)
 
-        df_filtered.drop_duplicates(keep='first', inplace=True)
-        df_filtered.reset_index(drop=True, inplace=True)
-
+        df_filtered = self.__remove_target_leakage(df=processed_df, targetName=targetName)
+        
         print(f"[INFO] Final dataset shape: {df_filtered.shape}")
         print(f"[INFO] Columns: {list(df_filtered.columns)}")
         print(f"[INFO] Any NaNs left? {df_filtered.isnull().any().any()}")
@@ -149,7 +173,30 @@ class DataPreprocess():
         filtered_features = df.drop(columns=to_drop)
 
         return filtered_features
+    
+    def __remove_target_leakage(self, df: pd.DataFrame, targetName: str, threshold: float = 0.9) -> pd.DataFrame:
+        """
+        Removes features that are highly correlated with the target to prevent data leakage.
 
+        Args:
+            df (pd.DataFrame): The input dataframe.
+            targetName (str): The name of the target column.
+            threshold (float): The absolute correlation threshold.
+
+        Returns:
+            pd.DataFrame: DataFrame with leakage-prone features removed.
+        """
+        corr_with_target = df.corr()[targetName].drop(targetName).abs()
+        leaking_features = corr_with_target[corr_with_target > threshold].index.tolist()
+
+        if leaking_features:
+            print(f"[LEAKAGE WARNING] Dropping features correlated with target > {threshold}: {leaking_features}")
+            df = df.drop(columns=leaking_features)
+        else:
+            print("[LEAKAGE CHECK] No data leakage detected.")
+
+        return df
+        
     def __remove_outliers_per_class(self, features: pd.DataFrame, target: pd.Series, k=1.5) -> tuple[pd.DataFrame, pd.Series]:
         """
         Removes outliers from the featurews on a per-class basis using the IQR method.
@@ -162,25 +209,33 @@ class DataPreprocess():
         Returns:
             tuple[pd.DataFrame, pd.Series]: Filtered features and target with outliers removed.
         """
+
         if isinstance(target, pd.DataFrame):
             target = target.iloc[:, 0]
 
+        # 🔹 Step 1: Global IQR filtering
+        Q1 = features.quantile(0.25)
+        Q3 = features.quantile(0.75)
+        IQR = Q3 - Q1
+        lower = Q1 - k * IQR
+        upper = Q3 + k * IQR
+        global_mask = ~((features < lower) | (features > upper)).any(axis=1)
+        features = features.loc[global_mask]
+        target = target.loc[global_mask]
+
+        # 🔹 Step 2: Per-class IQR filtering
         indices_to_keep = []
         for label in target.unique():
             class_data = features[target == label]
+            class_target = target[target == label]
             outlier_indices = set()
-
             for col in class_data.columns:
                 Q1 = class_data[col].quantile(0.25)
                 Q3 = class_data[col].quantile(0.75)
                 IQR = Q3 - Q1
                 LB = Q1 - k * IQR
                 UB = Q3 + k * IQR
-
-                outliers_col = class_data[(class_data[col] < LB) | (class_data[col] > UB)].index
-                outlier_indices.update(outliers_col)
-
-            # Keep samples that are NOT outliers for this class
+                outlier_indices.update(class_data[(class_data[col] < LB) | (class_data[col] > UB)].index)
             keep_indices = set(class_data.index) - outlier_indices
             indices_to_keep.extend(keep_indices)
 
