@@ -1,30 +1,45 @@
 import torch
 import pandas as pd
-import numpy as np
+
+# Python module used to find all file apths that match a specified pattern.
+# Used to read multiple files found in UAVCAM-Attack dataset folder.
+import glob
 
 from torch.utils.data import TensorDataset, DataLoader
 from sklearn.preprocessing import StandardScaler
+from sklearn.utils import shuffle
 from sklearn.model_selection import train_test_split
-from CNN_Model import CNN_Model as CNN
+from Research.CNN_Binary import CNN_Model as CNN
 from DataPreprocess import DataPreprocess
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-fileName = "Dataset_T-ITS.csv"
+bin_files = glob.glob("UAVCAN-Attack/*.bin")
 
-DP = DataPreprocess(fileName)
-df = DP.runNew(targetName='class', featuresToBinary=True, targetToBinary=True)
+column_names = [
+    'Status', 'Time', 'Interface', 'ID', 'Length', 'Data1', 'Data2', 
+    'Data3', 'Data4', 'Data5', 'Data6', 'Data7','Data8'
+]
 
-X = df.drop(columns=['class'])
-y = df['class']
+df = pd.concat((pd.read_csv(
+    file, sep=r'\s+', names=column_names) for file in bin_files if file.endswith('.bin')))
 
-print("X shape:", X.shape)
-print("y shape:", y.shape)
+print("Combined shape:", df.shape)
+print(df.head())
 
-X = df.drop(columns='class')
-y = df['class']
+DP = DataPreprocess()
+df = DP.runNew(targetName='Status', featuresToBinary=True, targetToBinary=True, givenDF=df, normalBehavior='Normal')
+print("Cleaned shape:", df.shape)
+print(df.head())
 
-corr_with_target = df.corr()['class'].drop('class').abs()
+df = shuffle(df, random_state=42)
+X = df.drop(columns='Status')
+y = df['Status']
+
+print("Class distribution in y:", y.value_counts())
+print('Unique classes in y:', y.unique())
+
+corr_with_target = df.corr()['Status'].drop('Status').abs()
 leaking_features = corr_with_target[corr_with_target > 0.9].index.tolist()
 
 if leaking_features:
@@ -35,21 +50,13 @@ else:
 X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42, stratify=y)
 X_train, X_val, y_train, y_val = train_test_split(X_train, y_train, test_size=0.25, random_state=42, stratify=y_train)
 
-print('Train shape:', X_train.shape)
-print('Validation shape:', X_val.shape)
-print('Test shape:', X_test.shape)
-
-scaler = StandardScaler()
-
+print("X_train type:", type(X_train))
 print("X_train shape:", X_train.shape)
 
+scaler = StandardScaler()
 X_train_scaled = scaler.fit_transform(X_train)
 X_val_scaled = scaler.transform(X_val)
 X_test_scaled = scaler.transform(X_test)
-
-print("Any NaNs in scaled X_train?", np.isnan(X_train_scaled).any())
-print("Min/Max of y_train:", y_train.min(), y_train.max())
-
 
 X_train = pd.DataFrame(X_train_scaled, columns=X_train.columns, index=X_train.index)
 X_val = pd.DataFrame(X_val_scaled, columns=X_val.columns, index=X_val.index)
@@ -59,7 +66,6 @@ X_train_tensor = torch.tensor(X_train.values, dtype=torch.float32).unsqueeze(1)
 X_test_tensor = torch.tensor(X_test.values, dtype=torch.float32).unsqueeze(1)
 X_val_tensor = torch.tensor(X_val.values, dtype=torch.float32).unsqueeze(1)
 
-# Double Check
 print("\nAfter converting to tensor and converting 2D to 3D")
 print('Train shape:', X_train_tensor.shape)
 print('Validation shape:', X_test_tensor.shape)

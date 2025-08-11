@@ -5,15 +5,15 @@ import numpy as np
 
 from torch.utils.data import TensorDataset, DataLoader
 from sklearn.preprocessing import StandardScaler
+from sklearn.utils import shuffle
 from sklearn.model_selection import train_test_split
-from CNN_Model import CNN_Model as CNN
+from CNN_Binary import CNN_Binary as CNN
 from DataPreprocess import DataPreprocess
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 directory_path = 'ISOT-Drone/'
-regular_files = []
-attack_files = []
+dataframes = []
 
 for subfolder in os.listdir(directory_path):
     subfolder_path = os.path.join(directory_path, subfolder)
@@ -22,53 +22,67 @@ for subfolder in os.listdir(directory_path):
             if file.endswith('.csv'):
                 file_path = os.path.join(subfolder_path, file)
                 df = pd.read_csv(file_path)
+
                 if subfolder == 'Regular':
                     df['Label'] = 0
-                    regular_files.append(df)
                 else:
                     df['Label'] = 1
-                    attack_files.append(df)
 
-all_regular = pd.concat(regular_files, ignore_index=True)
-all_attack = pd.concat(attack_files, ignore_index=True)
+                dataframes.append(df)
 
-print("Regular shape:", all_regular.shape)
-print("Attack shape:", all_attack.shape)
-
-df = pd.concat([all_regular, all_attack], ignore_index=True)
-print("Combined shape:", df.shape)
-
-# Check data types and NaNs
-print("Data types:\n", df.dtypes)
-count = 0
-for col in df.columns:
-    if df[col].dtype == 'object':
-        print(f"Column '{col}' is of type object with unique values: {df[col].unique()}")
-        count += 1
-
-print(f"Total object columns: {count}")
-print("Any NaNs in DataFrame?", df.isnull().any().any())
+all_data = pd.concat(dataframes, ignore_index=True)
 
 DP = DataPreprocess()
-df = DP.runNew(targetName='Label', givenDF=df)
-print("Cleaned shape:", df.shape)
+infoMetrics = []
+given_columns = set()
+processed_df = []
 
-X = df.drop(columns='Label')
-y = df['Label']
+for group_found in all_data['Label'].unique():
+    current_df = all_data[all_data['Label'] == group_found].copy()
+    proc_df = DP.runNew(
+        targetName='Label',
+        givenDF=current_df
+    )
 
-corr_with_target = df.corr()['Label'].drop('Label').abs()
-leaking_features = corr_with_target[corr_with_target > 0.9].index.tolist()
+    corr_with_target = current_df.corr()['Label'].drop('Label').abs()
+    leaking_features = corr_with_target[corr_with_target > 0.9].index.tolist()
 
-if leaking_features:
-    print(f"[LEAKAGE WARNING] Dropping features correlated with target > 0.9: {leaking_features}")
-else:
-    print("[LEAKAGE CHECK] No data leakage detected.")
+    if leaking_features:
+        print(f"[LEAKAGE WARNING] Dropping features correlated with target > 0.9: {leaking_features}")
+    else:
+        print("[LEAKAGE CHECK] No data leakage detected.")
+
+    group_columns = set(proc_df.columns)
+    given_columns.update(group_columns)
+    processed_df.append(proc_df)
+
+    infoMetrics.append(f'[INFO] Current numeric label: {group_found} | Prior to DP: {current_df.shape} | After DP: {proc_df.shape}')
+
+for info in infoMetrics:
+    print(info)
+
+given_columns = sorted(given_columns)
+aligned_df = []
+
+for df in processed_df:
+    for feature in given_columns:
+        if feature not in df.columns:
+            df[feature] = 0
+    
+    cols_order = ['Label'] + [c for c in given_columns if c != 'Label']
+    aligned_df.append(df[cols_order])
+
+final_df = pd.concat(aligned_df, ignore_index=True)
+final_df = shuffle(final_df, random_state=42)
+X = final_df.drop(columns='Label')
+y = final_df['Label']
 
 X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42, stratify=y)
 X_train, X_val, y_train, y_val = train_test_split(X_train, y_train, test_size=0.25, random_state=42, stratify=y_train)
 
-print("X_train type:", type(X_train))
-print("X_train shape:", X_train.shape)
+print(f'[DATAFRAME INFO] X_train size: {X_train.shape}')
+print(f'[DATAFRAME INFO] X_test size: {X_test.shape}')
+print(F'[DATAFRAME INFO] X_val size: {X_val.shape}')
 
 scaler = StandardScaler()
 X_train_scaled = scaler.fit_transform(X_train)
@@ -83,10 +97,10 @@ X_train_tensor = torch.tensor(X_train.values, dtype=torch.float32).unsqueeze(1)
 X_test_tensor = torch.tensor(X_test.values, dtype=torch.float32).unsqueeze(1)
 X_val_tensor = torch.tensor(X_val.values, dtype=torch.float32).unsqueeze(1)
 
-print("\nAfter converting to tensor and converting 2D to 3D")
-print('Train shape:', X_train_tensor.shape)
-print('Validation shape:', X_test_tensor.shape)
-print('Test shape:', X_val_tensor.shape)
+print("[TORCH DATAFRAME] After converting to tensor and converting 2D to 3D")
+print('[TORCH DATAFRAME] Train shape:', X_train_tensor.shape)
+print('[TORCH DATAFRAME] Validation shape:', X_val_tensor.shape)
+print('[TORCH DATAFRAME] Test shape:', X_test_tensor.shape)
 
 y_train_tensor = torch.tensor(y_train.values, dtype=torch.float32).unsqueeze(1)
 y_test_tensor = torch.tensor(y_test.values, dtype=torch.float32).unsqueeze(1)

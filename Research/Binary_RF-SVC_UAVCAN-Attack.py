@@ -98,89 +98,71 @@ X_train_reduced_np = np.array(X_train_reduced)
 X_test_reduced_np = np.array(X_test_reduced)
 
 # Convert NumPy arrays to CuPy arrays
-X_train_gpu = cp.asarray(X_train_reduced_np)
-X_test_gpu = cp.asarray(X_test_reduced_np)
+# X_train_gpu = cp.asarray(X_train_reduced_np)
+# X_test_gpu = cp.asarray(X_test_reduced_np)
 
+kernel_evals = {}
+def evaluate_classification_XGBRF_cuML_SVC(rf_model, svc_model, name, X_train, X_test, y_train, y_test):
+    # Transform features using RF probabilities
+    rf_train_features = rf_model.predict_proba(X_train)
+    rf_test_features = rf_model.predict_proba(X_test)
+
+    # cuML expects cupy arrays; ensure conversion if necessary
+    y_train_pred = svc_model.predict(rf_train_features)
+    y_test_pred = svc_model.predict(rf_test_features)
+
+    # If cuML returns cupy arrays, convert to numpy
+    if hasattr(y_train_pred, "get"): 
+        y_train_pred = y_train_pred.get()
+    if hasattr(y_test_pred, "get"): 
+        y_test_pred = y_test_pred.get()
+
+    # Calculate metrics (binary by default, adjust if multiclass)
+    train_precision = metrics.precision_score(y_train, y_train_pred)
+    test_precision = metrics.precision_score(y_test, y_test_pred)
+
+    train_accuracy = metrics.accuracy_score(y_train, y_train_pred)
+    test_accuracy = metrics.accuracy_score(y_test, y_test_pred)
+
+    train_recall = metrics.recall_score(y_train, y_train_pred)
+    test_recall = metrics.recall_score(y_test, y_test_pred)
+
+    train_f1 = metrics.f1_score(y_train, y_train_pred)
+    test_f1 = metrics.f1_score(y_test, y_test_pred)
+
+    cm_train = metrics.confusion_matrix(y_train, y_train_pred)
+    tp_train = cm_train[1, 1]
+    fn_train = cm_train[1, 0]
+    idc_train = tp_train / (tp_train + fn_train) if (tp_train + fn_train) > 0 else 0.0
+
+    cm_test = metrics.confusion_matrix(y_test, y_test_pred)
+    tp_test = cm_test[1, 1]
+    fn_test = cm_test[1, 0]
+    idc_test = tp_test / (tp_test + fn_test) if (tp_test + fn_test) > 0 else 0.0
+
+    # Store and print results
+    kernel_evals[str(name)] = [train_accuracy, test_accuracy, train_precision, test_precision, train_recall, test_recall]
+    print(f"\nTraining Accuracy {name} {train_accuracy*100:.2f}%  Test Accuracy {name} {test_accuracy*100:.2f}%")
+    print(f"Training Precision {name} {train_precision*100:.2f}%  Test Precision {name} {test_precision*100:.2f}%")
+    print(f"Training Recall {name} {train_recall*100:.2f}%  Test Recall {name} {test_recall*100:.2f}%")
+    print(f"Training F1 Score {name} {train_f1*100:.2f}%  Test F1 Score {name} {test_f1*100:.2f}%")
+    print(f"Training IDC {name} {idc_train*100:.2f}%  Test IDC {name} {idc_test*100:.2f}%")
+
+# Train XGBRF
 XGB_RF = xgb.XGBRFClassifier(
     objective='binary:logistic',
     n_estimators=100,
     random_state=42,
-    tree_method='hist', 
+    tree_method='hist',
     device='cuda'
 )
 XGB_RF.fit(X_train_reduced_np, y_train)
 
-# cuML SVC (GPU)
+# Prepare features for cuML SVC (train using RF probabilities)
+RF_train_features = XGB_RF.predict_proba(X_train_reduced_np)
 SVM_classifier = cuSVC(kernel='rbf', probability=True)
-SVM_classifier.fit(X_train_reduced_np, y_train.values)  # cuML expects ndarray for labels
+SVM_classifier.fit(RF_train_features, y_train.values)
 
-def evaluate_classification_cuml(model, name, X_train, X_test, y_train, y_test):
-    # cuML's predict returns cupy array; convert to numpy for sklearn metrics
-    y_train_pred = model.predict(X_train).get() if hasattr(model.predict(X_train), 'get') else model.predict(X_train)
-    y_test_pred = model.predict(X_test).get() if hasattr(model.predict(X_test), 'get') else model.predict(X_test)
-
-    train_precision = metrics.precision_score(y_train, y_train_pred)
-    test_precision = metrics.precision_score(y_test, y_test_pred)
-
-    train_accuracy = metrics.accuracy_score(y_train, y_train_pred)
-    test_accuracy = metrics.accuracy_score(y_test, y_test_pred)
-
-    train_recall = metrics.recall_score(y_train, y_train_pred)
-    test_recall = metrics.recall_score(y_test, y_test_pred)
-
-    train_f1 = metrics.f1_score(y_train, y_train_pred)
-    test_f1 = metrics.f1_score(y_test, y_test_pred)
-
-    cm_train = metrics.confusion_matrix(y_train, y_train_pred)
-    tp_train = cm_train[1, 1]
-    fn_train = cm_train[1, 0]
-    idc_train = tp_train / (tp_train + fn_train) if (tp_train + fn_train) > 0 else 0.0
-
-    cm_test = metrics.confusion_matrix(y_test, y_test_pred)
-    tp_test = cm_test[1, 1]
-    fn_test = cm_test[1, 0]
-    idc_test = tp_test / (tp_test + fn_test) if (tp_test + fn_test) > 0 else 0.0
-
-    print(f"\nTraining Accuracy {name} {train_accuracy*100:.2f}%  Test Accuracy {name} {test_accuracy*100:.2f}%")
-    print(f"Training Precision {name} {train_precision*100:.2f}%  Test Precision {name} {test_precision*100:.2f}%")
-    print(f"Training Recall {name} {train_recall*100:.2f}%  Test Recall {name} {test_recall*100:.2f}%")
-    print(f"Training F1 Score {name} {train_f1*100:.2f}%  Test F1 Score {name} {test_f1*100:.2f}%")
-    print(f"Training IDC {name} {idc_train*100:.2f}%  Test IDC {name} {idc_test*100:.2f}%")
-
-kernal_evals = {}
-def evaluate_classification_XGB_RF(model, name, X_train, X_test, y_train, y_test):
-    y_train_pred = model.predict(X_train)
-    y_test_pred = model.predict(X_test)
-
-    train_precision = metrics.precision_score(y_train, y_train_pred)
-    test_precision = metrics.precision_score(y_test, y_test_pred)
-
-    train_accuracy = metrics.accuracy_score(y_train, y_train_pred)
-    test_accuracy = metrics.accuracy_score(y_test, y_test_pred)
-
-    train_recall = metrics.recall_score(y_train, y_train_pred)
-    test_recall = metrics.recall_score(y_test, y_test_pred)
-
-    train_f1 = metrics.f1_score(y_train, y_train_pred)
-    test_f1 = metrics.f1_score(y_test, y_test_pred)
-
-    cm_train = metrics.confusion_matrix(y_train, y_train_pred)
-    tp_train = cm_train[1, 1]
-    fn_train = cm_train[1, 0]
-    idc_train = tp_train / (tp_train + fn_train) if (tp_train + fn_train) > 0 else 0.0
-
-    cm_test = metrics.confusion_matrix(y_test, y_test_pred)
-    tp_test = cm_test[1, 1]
-    fn_test = cm_test[1, 0]
-    idc_test = tp_test / (tp_test + fn_test) if (tp_test + fn_test) > 0 else 0.0
-
-    kernal_evals[str(name)] = [train_accuracy, test_accuracy, train_precision, test_precision, train_recall, test_recall]
-    print(f"\nTraining Accuracy {name} {train_accuracy*100:.2f}%  Test Accuracy {name} {test_accuracy*100:.2f}%")
-    print(f"Training Precision {name} {train_precision*100:.2f}%  Test Precision {name} {test_precision*100:.2f}%")
-    print(f"Training Recall {name} {train_recall*100:.2f}%  Test Recall {name} {test_recall*100:.2f}%")
-    print(f"Training F1 Score {name} {train_f1*100:.2f}%  Test F1 Score {name} {test_f1*100:.2f}%")
-    print(f"Training IDC {name} {idc_train*100:.2f}%  Test IDC {name} {idc_test*100:.2f}%")
-
-# Evaluate both
-evaluate_classification_XGB_RF(XGB_RF, "Random Forest", X_train_reduced_np, X_test_reduced_np, y_train, y_test)
-evaluate_classification_cuml(SVM_classifier, "cuML SVM", X_train_reduced_np, X_test_reduced_np, y_train, y_test)
+# Evaluate hybrid
+evaluate_classification_XGBRF_cuML_SVC(XGB_RF, SVM_classifier, "Hybrid XGBRF + cuML SVM",
+                                       X_train_reduced_np, X_test_reduced_np, y_train, y_test)

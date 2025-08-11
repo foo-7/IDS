@@ -113,6 +113,8 @@ class DataPreprocess():
 
         if targetToBinary:
             target = target.apply(lambda x: 0 if str(x).lower() == normalBehavior.lower() else 1)
+        else:
+            print(f"[INFO] Target column is multiclass with unique values: {target.unique()} OR no need for mapping")
 
         processed_df = pd.concat([features, target], axis=1)
         processed_df = self.__remove_target_leakage(df=processed_df, targetName=targetName)
@@ -124,18 +126,22 @@ class DataPreprocess():
 
         print(f"[INFO] DataFrame shape after removing high correlation features: {df_removed.shape}")
 
-        quantitative_data = df_removed.select_dtypes(include='number').copy()
+        #quantitative_data = df_removed.select_dtypes(include='number').copy()
+        quantitative_data = df_removed.select_dtypes(include='number')
+
         target = quantitative_data[targetName]
         features = quantitative_data.drop(columns=[targetName])
 
         filtered_features, filtered_target = self.__remove_outliers_per_class(features=features, target=target)
 
-        df_filtered = filtered_features.copy()
-        df_filtered[targetName] = filtered_target
+        df_filtered = pd.concat([filtered_features, filtered_target], axis=1)
+
+        #df_filtered = filtered_features.copy()
+        #df_filtered[targetName] = filtered_target
 
         print(f"[INFO] DataFrame shape after removing outliers: {df_filtered.shape}")
 
-        df_filtered = self.__remove_target_leakage(df=processed_df, targetName=targetName)
+        df_filtered = self.__remove_target_leakage(df=df_filtered, targetName=targetName)
 
         if df_filtered.isnull().any().any():
             print("[WARNING] NaNs still present after filling! Dropping affected rows.")
@@ -143,11 +149,12 @@ class DataPreprocess():
             df_filtered.drop_duplicates(keep='first', inplace=True)
             df_filtered.reset_index(drop=True, inplace=True)
 
-        df_filtered = self.__remove_target_leakage(df=processed_df, targetName=targetName)
+        df_filtered = self.__remove_target_leakage(df=df_filtered, targetName=targetName)
         
         print(f"[INFO] Final dataset shape: {df_filtered.shape}")
         print(f"[INFO] Columns: {list(df_filtered.columns)}")
         print(f"[INFO] Any NaNs left? {df_filtered.isnull().any().any()}")
+        print('[END] Data preprocessing completed successfully.')
 
         return df_filtered
 
@@ -244,3 +251,6 @@ class DataPreprocess():
         filtered_target = target.loc[indices_to_keep].reset_index(drop=True)
 
         return filtered_features, filtered_target
+    
+    def get_dataframe(self) -> pd.DataFrame:
+        return self.__df.copy()

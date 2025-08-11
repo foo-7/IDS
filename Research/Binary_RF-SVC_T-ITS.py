@@ -45,44 +45,55 @@ print("Number of original features is {} and of reduced features is {}".format(X
 print("Number of original features is {} and of reduced features is {}".format(X_test.shape[1], X_test_reduced.shape[1]))
 
 kernal_evals = {}
-def evaluate_classification(model, name, X_train, X_test, y_train, y_test):
-    train_precision = metrics.precision_score(y_train, model.predict(X_train))
-    test_precision = metrics.precision_score(y_test, model.predict(X_test))
+def evaluate_classification_hybrid(rf_model, svc_model, name, X_train, X_test, y_train, y_test):
+    # Transform features using RF probabilities
+    rf_train_features = rf_model.predict_proba(X_train)
+    rf_test_features = rf_model.predict_proba(X_test)
 
-    train_accuracy = metrics.accuracy_score(y_train, model.predict(X_train))
-    test_accuracy = metrics.accuracy_score(y_test, model.predict(X_test))
+    # Predictions from SVC using RF-transformed features
+    y_train_pred = svc_model.predict(rf_train_features)
+    y_test_pred = svc_model.predict(rf_test_features)
 
-    train_recall = metrics.recall_score(y_train, model.predict(X_train))
-    test_recall = metrics.recall_score(y_test, model.predict(X_test))
+    # Calculate metrics
+    train_precision = metrics.precision_score(y_train, y_train_pred)
+    test_precision = metrics.precision_score(y_test, y_test_pred)
 
-    train_f1 = metrics.f1_score(y_train, model.predict(X_train))
-    test_f1 = metrics.f1_score(y_test, model.predict(X_test))
+    train_accuracy = metrics.accuracy_score(y_train, y_train_pred)
+    test_accuracy = metrics.accuracy_score(y_test, y_test_pred)
 
-    cm_train = metrics.confusion_matrix(y_train, model.predict(X_train))
+    train_recall = metrics.recall_score(y_train, y_train_pred)
+    test_recall = metrics.recall_score(y_test, y_test_pred)
+
+    train_f1 = metrics.f1_score(y_train, y_train_pred)
+    test_f1 = metrics.f1_score(y_test, y_test_pred)
+
+    cm_train = metrics.confusion_matrix(y_train, y_train_pred)
     tp_train = cm_train[1, 1]
     fn_train = cm_train[1, 0]
     idc_train = tp_train / (tp_train + fn_train) if (tp_train + fn_train) > 0 else 0.0
 
-    cm_test = metrics.confusion_matrix(y_test, model.predict(X_test))
+    cm_test = metrics.confusion_matrix(y_test, y_test_pred)
     tp_test = cm_test[1, 1]
     fn_test = cm_test[1, 0]
     idc_test = tp_test / (tp_test + fn_test) if (tp_test + fn_test) > 0 else 0.0
 
+    # Store and print results
     kernal_evals[str(name)] = [train_accuracy, test_accuracy, train_precision, test_precision, train_recall, test_recall]
-    print("\nTraining Accuracy " + str(name) + " {}  Test Accuracy ".format(train_accuracy*100) + str(name) + " {}".format(test_accuracy*100))
-    print("Training Precesion " + str(name) + " {}  Test Precesion ".format(train_precision*100) + str(name) + " {}".format(test_precision*100))
-    print("Training Recall " + str(name) + " {}  Test Recall ".format(train_recall*100) + str(name) + " {}".format(test_recall*100))
-    print("Training F1 Score " + str(name) + " {}  Test F1 Score ".format(train_f1*100) + str(name) + " {}".format(test_f1*100))
-    print("Training IDC " + str(name) + " {}  Test IDC ".format(idc_train * 100) + str(name) + " {}".format(idc_test * 100))
+    print(f"\nTraining Accuracy {name} {train_accuracy*100}  Test Accuracy {name} {test_accuracy*100}")
+    print(f"Training Precesion {name} {train_precision*100}  Test Precesion {name} {test_precision*100}")
+    print(f"Training Recall {name} {train_recall*100}  Test Recall {name} {test_recall*100}")
+    print(f"Training F1 Score {name} {train_f1*100}  Test F1 Score {name} {test_f1*100}")
+    print(f"Training IDC {name} {idc_train*100}  Test IDC {name} {idc_test*100}")
 
 RF_classifier = RFC(n_estimators=100, random_state=42)
 RF_classifier.fit(X_train_reduced, y_train)
-SVM_classifier = SVC()
-SVM_classifier.fit(X_train_reduced, y_train)
-evaluate_classification(RF_classifier, "Random Forest", 
-                        X_train_reduced, X_test_reduced,
-                        y_train, y_test)
 
-evaluate_classification(SVM_classifier, "SVM",
-                        X_train_reduced, X_test_reduced,
-                        y_train, y_test)
+# We use RF to transform features into probabilities for SVC
+RF_train_features = RF_classifier.predict_proba(X_train_reduced)
+
+SVM_classifier = SVC(probability=True, random_state=42)
+SVM_classifier.fit(RF_train_features, y_train)
+
+evaluate_classification_hybrid(RF_classifier, SVM_classifier, "Hybrid RF-SVC",
+                               X_train_reduced, X_test_reduced,
+                               y_train, y_test)

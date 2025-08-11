@@ -3,8 +3,9 @@ import pandas as pd
 
 from torch.utils.data import TensorDataset, DataLoader
 from sklearn.preprocessing import StandardScaler
+from sklearn.utils import shuffle
 from sklearn.model_selection import train_test_split
-from CNN_Model import CNN_Model as CNN
+from CNN_Binary import CNN_Binary as CNN
 from DataPreprocess import DataPreprocess
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -13,8 +14,9 @@ fileName1 = "jamming-merged-gps-only.csv"       # 100% Accuracy
 fileName2 = "spoofing-merged-gps-only.csv"      # 100% Accuracy
 trainModel = True
 
-DP = DataPreprocess(fileName=fileName1)
+DP = DataPreprocess(fileName=fileName2)
 df = DP.runNew(targetName='label', targetToBinary=True)
+df = shuffle(df, random_state=42)
 
 X = df.drop(columns='label')
 y = df['label']

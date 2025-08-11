@@ -1,7 +1,8 @@
 import torch
 import torch.nn as nn
+from torchmetrics.classification import Precision, Recall, F1Score
 
-class CNN_Model(nn.Module):
+class CNN_Binary(nn.Module):
     """
     CNN for intrusion detection. CNN focuses on binary classification. The model consists
     of two convolution layers and two dense layers.
@@ -106,7 +107,7 @@ class CNN_Model(nn.Module):
 
         self.to(self.device_location)
         best_accuracy = 0
-        smallEpoch = True if epochs >= 10 else False
+        smallEpoch = True if epochs <= 10 else False
 
         if train_loader:
             for epoch in range(1, epochs+1):
@@ -197,6 +198,9 @@ class CNN_Model(nn.Module):
             self.eval()
             test_loss = 0.
             correct = total = 0
+            precision = Precision(task='binary', average='macro').to(self.device_location)
+            recall = Recall(task='binary', average='macro').to(self.device_location)
+            f1_score = F1Score(task='binary', average='macro').to(self.device_location)
 
             with torch.no_grad():
                 for inputs, targets in test_loader:
@@ -210,10 +214,19 @@ class CNN_Model(nn.Module):
                     predicted = (output >= 0.5).float()
                     correct += (predicted.eq(targets)).sum().item()
                     total += targets.size(0)
+                    precision.update(predicted, targets)
+                    recall.update(predicted, targets)
+                    f1_score.update(predicted, targets)
 
             test_loss /= len(test_loader.dataset)
             accuracy = correct / total
-            print(f'[TEST INFO] Accuracy: {accuracy:.5f} | Loss: {test_loss:.10f}')
+            precision_score = precision.compute().item()
+            recall_score = recall.compute().item()
+            f1 = f1_score.compute().item()
+            print(
+                f'[TEST INFO] Accuracy: {accuracy:.5f} | Loss: {test_loss:.10f} ' +
+                f'| Precision: {precision_score:.5f} | Recall: {recall_score:.5f} | F1 Score: {f1:.5f}'
+            )
 
         else:
             raise ValueError(f'[ERROR] Expected test dataset to be passed on test_model function call, try again')
