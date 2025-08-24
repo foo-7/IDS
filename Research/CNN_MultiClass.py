@@ -33,10 +33,11 @@ class CNN_MultiClass(nn.Module):
         self.dense_layers = nn.Sequential(
             nn.Flatten(),
             nn.Linear(flattened_size, 128),
+            nn.ReLU(),
             nn.Dropout(0.5),
 
-            nn.ReLU(),
             nn.Linear(128, 128),
+            nn.ReLU(),
             nn.Dropout(0.5),
 
             nn.Linear(128, num_classes)

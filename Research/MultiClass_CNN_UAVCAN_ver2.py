@@ -317,5 +317,5 @@ Test_loader = DataLoader(Test_dataset, batch_size=64, shuffle=False, pin_memory=
 Validation_loader = DataLoader(Validation_dataset, batch_size=64, shuffle=False, pin_memory=True)
 
 network = CNN(input_length=X_train_tensor.shape[2], num_classes=len(y.unique())).to(device)
-network.train_model(train_loader=Train_loader, validation_loader=Validation_loader, epochs=10)
+network.train_model(train_loader=Train_loader, validation_loader=Validation_loader, epochs=25)
 network.test_model(test_loader=Test_loader)

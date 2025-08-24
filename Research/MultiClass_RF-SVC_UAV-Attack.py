@@ -116,7 +116,7 @@ RF_classifier.fit(X_train_reduced, y_train)
 
 RF_train_features = RF_classifier.predict_proba(X_train_reduced)
 
-SVM_classifier = SVC(probability=True, random_state=42)
+SVM_classifier = SVC(probability=True, kernel='rbf', random_state=42)
 SVM_classifier.fit(RF_train_features, y_train)
 
 evaluate_classification_hybrid(
