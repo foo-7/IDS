@@ -3,8 +3,7 @@
 This repository contains implementations of a hybrid **Random Forest → Support Vector Classifier (RF--SVC)** and a **1D Convolutional Neural Network (1D-CNN)** for multi-class UAV network intrusion detection. The project includes:
 
 - Data preprocessing
-- Model training and evaluation
-- Scripts to reproduce tables, figures, and metrics
+- Model training and evaluations
 
 ## Setup
 Requires Python 3.10+
