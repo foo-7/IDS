@@ -6,12 +6,12 @@ from torch.utils.data import TensorDataset, DataLoader
 from sklearn.preprocessing import StandardScaler
 from sklearn.utils import shuffle
 from sklearn.model_selection import train_test_split
-from CNN_MultiClass import CNN_MultiClass as CNN
-from DataPreprocess import DataPreprocess
+from models.CNN_MultiClass import CNN_MultiClass as CNN
+from preprocessing.DataPreprocess import DataPreprocess
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-directory_path = 'ISOT-Drone/'
+directory_path = 'data/ISOT-Drone/'
 dataframes = []
 label_mapping = {}
 label_counter = 0

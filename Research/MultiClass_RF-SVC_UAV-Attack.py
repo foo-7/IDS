@@ -1,6 +1,6 @@
 import pandas as pd
 
-from DataPreprocess import DataPreprocess
+from preprocessing.DataPreprocess import DataPreprocess
 from sklearn.utils import shuffle
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
@@ -9,14 +9,21 @@ from sklearn import metrics
 from sklearn.ensemble import RandomForestClassifier as RFC
 from sklearn.svm import SVC as SVC
 
-df_jamming = pd.read_csv('jamming-merged-gps-only.csv')
-df_spoofing = pd.read_csv('spoofing-merged-gps-only.csv')
+df_jamming = pd.read_csv('data/jamming-merged-gps-only.csv')
+df_spoofing = pd.read_csv('data/spoofing-merged-gps-only.csv')
 
 combined_columns = set()
 combined_df = []
 
+jam_X = df_jamming.drop(columns='label')
+spoof_X = df_spoofing.drop(columns='label')
+print(f'[TOTAL AMOUNT OF FEATURES JAMMING]: {len(jam_X.columns)}')
+print(f'[TOTAL AMOUNT OF FEATURES SPOOFING]: {len(spoof_X.columns)}')
+
 DP = DataPreprocess()
+print(df_jamming['label'].unique())
 for labels in df_jamming['label'].unique():
+    print(f'[DATA] Current label: {labels}')
     current_label = 0 if labels == 'benign' else 1
     current_df = df_jamming[df_jamming['label'] == labels].copy()
     current_df['label'] = current_label
@@ -31,6 +38,7 @@ for labels in df_jamming['label'].unique():
     combined_df.append(proc_df.copy())
 
 for labels in df_spoofing['label'].unique():
+    print(f'[DATA] Current label: {labels}')
     current_label = 0 if labels == 'benign' else 2
     current_df = df_spoofing[df_spoofing['label'] == labels].copy()
     current_df['label'] = current_label
@@ -66,6 +74,8 @@ if leaking_features:
     df = df.drop(columns=leaking_features)
 else:
     print("[LEAKAGE CHECK] No data leakage detected.")
+
+print(f'[FINAL DATAFRAME] Dataframe shape: {df.shape}')
 
 X = df.drop(columns='label')
 y = df['label']

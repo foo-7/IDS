@@ -2,7 +2,7 @@ import pandas as pd
 
 from io import StringIO
 from collections import defaultdict
-from DataPreprocess import DataPreprocess
+from preprocessing.DataPreprocess import DataPreprocess
 from sklearn.utils import shuffle
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
@@ -22,27 +22,16 @@ def load_and_split_by_class(filename):
 
     for line in lines:
         if line.startswith('timestamp_c'):
-            # Process previous chunk if exists
             if chunk_lines:
                 chunk_csv = ''.join(chunk_lines)
                 chunk_df = pd.read_csv(StringIO(chunk_csv))
-
-                # --- START FIXES ---
-                # 1. Drop columns with all NaNs (empty trailing columns)
                 chunk_df = chunk_df.dropna(axis=1, how='all')
 
-                # 2. Rename 'class' to 'Label' if needed (adjust according to your pipeline)
                 if 'class' in chunk_df.columns:
                     chunk_df.rename(columns={'class': 'Label'}, inplace=True)
 
-                # 3. Drop columns with >50% NaNs (optional threshold)
                 chunk_df = chunk_df.loc[:, chunk_df.isna().mean() < 0.5]
-
-                # 4. Fill remaining NaNs with 0 (or use another imputation)
                 chunk_df = chunk_df.fillna(0)
-                # --- END FIXES ---
-
-                # Group by class/label and store
                 for class_label, group_df in chunk_df.groupby(chunk_df['Label'].str.lower()):
                     dfs_by_class[class_label].append(group_df)
 
@@ -50,28 +39,22 @@ def load_and_split_by_class(filename):
             header_line = line
         chunk_lines.append(line)
 
-    # Process the last chunk (same fixes applied)
     if chunk_lines:
         chunk_csv = ''.join(chunk_lines)
         chunk_df = pd.read_csv(StringIO(chunk_csv))
 
-        # --- START FIXES ---
         chunk_df = chunk_df.dropna(axis=1, how='all')
         if 'class' in chunk_df.columns:
             chunk_df.rename(columns={'class': 'Label'}, inplace=True)
         chunk_df = chunk_df.loc[:, chunk_df.isna().mean() < 0.5]
         chunk_df = chunk_df.fillna(0)
-        # --- END FIXES ---
-
         for class_label, group_df in chunk_df.groupby(chunk_df['Label'].str.lower()):
             dfs_by_class[class_label].append(group_df)
 
-    # Concatenate chunks per class
     concatenated = {cls: pd.concat(dfs, ignore_index=True) for cls, dfs in dfs_by_class.items()}
     return concatenated
 
-# Usage remains the same
-filename = 'Dataset_T-ITS.csv'
+filename = 'data/Dataset_T-ITS.csv'
 dfs_by_class = load_and_split_by_class(filename)
 
 benign_df = dfs_by_class.get('benign')

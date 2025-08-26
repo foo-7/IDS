@@ -7,14 +7,14 @@ import cupy as cp
 import xgboost as xgb
 from cuml.svm import SVC as cuSVC
 
-from DataPreprocess import DataPreprocess
+from preprocessing.DataPreprocess import DataPreprocess
 from sklearn.utils import shuffle
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
 from sklearn.decomposition import PCA
 from sklearn import metrics
 
-directory_path = 'ISOT-Drone/'
+directory_path = 'data/ISOT-Drone/'
 dataframes = []
 label_mapping = {}
 label_counter = 0
@@ -43,6 +43,8 @@ infoMetrics = []
 processed_df = []
 given_columns = set()
 
+reverse_label_mapping = {v: k for k, v in label_mapping.items()}
+
 for group_found in all_data['Label'].unique():
     current_df = all_data[all_data['Label'] == group_found].copy()
     proc_df = DP.runNew(targetName='Label', givenDF=current_df)
@@ -59,7 +61,7 @@ for group_found in all_data['Label'].unique():
     given_columns.update(group_columns)
     processed_df.append(proc_df)
 
-    infoMetrics.append(f'[INFO] Current numeric label: {group_found} | Prior to DP: {current_df.shape} | After DP: {proc_df.shape}')
+    infoMetrics.append(f'[INFO] Named label: {reverse_label_mapping[group_found]} | Current numeric label: {group_found} | Prior to DP: {current_df.shape} | After DP: {proc_df.shape}')
 
 for info in infoMetrics:
     print(info)
@@ -96,6 +98,11 @@ X_test_reduced = pca.transform(X_test_scaled)
 
 X_train_reduced_np = np.array(X_train_reduced)
 X_test_reduced_np = np.array(X_test_reduced)
+
+print("Number of original features is {} and of reduced features is {}".format(X_train.shape[1], X_train_reduced.shape[1]))
+print("Number of original features is {} and of reduced features is {}".format(X_test.shape[1], X_test_reduced.shape[1]))
+print(X_train.shape)
+print(X_train_reduced.shape)
 
 kernel_evals = {}
 

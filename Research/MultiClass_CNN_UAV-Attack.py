@@ -6,16 +6,22 @@ from torch.utils.data import TensorDataset, DataLoader
 from sklearn.preprocessing import StandardScaler
 from sklearn.utils import shuffle
 from sklearn.model_selection import train_test_split
-from CNN_MultiClass import CNN_MultiClass as CNN
-from DataPreprocess import DataPreprocess
+from models.CNN_MultiClass import CNN_MultiClass as CNN
+from preprocessing.DataPreprocess import DataPreprocess
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-df_jamming = pd.read_csv('jamming-merged-gps-only.csv')
-df_spoofing = pd.read_csv('spoofing-merged-gps-only.csv')
+df_jamming = pd.read_csv('data/jamming-merged-gps-only.csv')
+df_spoofing = pd.read_csv('data/spoofing-merged-gps-only.csv')
 
 combined_columns = set()
 combined_df = []
+
+jam_X = df_jamming.drop(columns='label')
+spoof_X = df_spoofing.drop(columns='label')
+print(f'[TOTAL AMOUNT OF FEATURES JAMMING]: {len(jam_X.columns)}')
+print(f'[TOTAL AMOUNT OF FEATURES SPOOFING]: {len(spoof_X.columns)}')
+
 
 DP = DataPreprocess()
 for labels in df_jamming['label'].unique():
@@ -70,6 +76,8 @@ else:
     print("[LEAKAGE CHECK] No data leakage detected.")
 
 X = df.drop(columns='label')
+print(f'[TOTAL AMOUNT OF FEATURES UNIFIED DATAFRAME]: {len(X.columns)}')
+print(f'[FINAL DATAFRAME] Dataframe shape: {df.shape}')
 y = df['label']
 X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42, stratify=y)
 X_train, X_val, y_train, y_val = train_test_split(X_train, y_train, test_size=0.25, random_state=42, stratify=y_train)

@@ -1,20 +1,18 @@
 import pandas as pd
-# Python module used to find all file apths that match a specified pattern.
-# Used to read multiple files found in UAVCAM-Attack dataset folder.
 import glob
 import numpy as np
 import cupy as cp
 import xgboost as xgb
 from cuml.svm import SVC as cuSVC
 
-from DataPreprocess import DataPreprocess
+from preprocessing.DataPreprocess import DataPreprocess
 from sklearn.utils import shuffle
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
 from sklearn.decomposition import PCA
 from sklearn import metrics
 
-bin_files = glob.glob('UAVCAN-Attack/*.bin')
+bin_files = glob.glob('data/UAVCAN-Attack/*.bin')
 file_size = {}
 column_names = [
     'Status', 'Time', 'Interface', 'ID', 'Length', 'Data1', 'Data2', 
@@ -48,12 +46,12 @@ malicious_type6 = (df_files[6]['Status'] == 'Attack').sum() # Replay
 # Flooding
 for index, row in df_files[1].iterrows():
     if row['Status'] == 'Normal': df_files[1].at[index, 'Status'] = 0
-    else: df_files[1].at[index, 'Status'] = 0
+    else: df_files[1].at[index, 'Status'] = 1
 
 # Flooding
 for index, row in df_files[2].iterrows():
     if row['Status'] == 'Normal': df_files[2].at[index, 'Status'] = 0
-    else: df_files[2].at[index, 'Status'] = 0
+    else: df_files[2].at[index, 'Status'] = 1
 
 # Fuzzy
 for index, row in df_files[3].iterrows():
@@ -294,6 +292,9 @@ X_test_reduced = pca.transform(X_test_scaled)
 
 X_train_reduced_np = np.array(X_train_reduced)
 X_test_reduced_np = np.array(X_test_reduced)
+
+print("Number of original features is {} and of reduced features is {}".format(X_train.shape[1], X_train_reduced.shape[1]))
+print("Number of original features is {} and of reduced features is {}".format(X_test.shape[1], X_test_reduced.shape[1]))
 
 kernel_evals = {}
 
