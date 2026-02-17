@@ -2,72 +2,24 @@ import torch
 import torch.nn as nn
 from torchmetrics.classification import Precision, MulticlassAccuracy, Recall, F1Score
 
-class CNN_MultiClass(nn.Module):
+class MLP_MultiClass(nn.Module):
     """
-    CNN for intrusion detection focusing on multi-class classification of temporal packet sequences.
-
-    The model utilizes a 1D-CNN architecure to extract features across sliding time windows, followed
-    by dense layers for classification
-
-    Author:
-        Noah Ogilvie, nd2004@uw.edu
-
-    Version:
-        2.1
-            - Fixed CNN from reshaping single feature vectors to actual temporal sequences
+    Multi-Layer Perceptron using the same sequence as the CNN
     """
 
-    def __init__(self, num_features: int, window_size: int, num_classes: int) -> None:
-        """
-        Initializes the CNN model.
-
-        Args:
-            num_features (int): Number of input features per packet.
-            window_size (int): Number of packets per temporal sequence (window).
-            num_classes (int): Number of distinct attack categories.
-        """
+    def __init__(self, num_features: int, window_size: int, num_classes: int):
         super().__init__()
+        flattened_input_size = num_features * window_size
 
-        # The purpose of this is to make sure we dont underfit in the first convolution layerr
-        first_out = max(64, int(num_features * 1.5))
-        second_out = first_out * 2
-        temporal_resolution = 4
-        self.cnn_layers = nn.Sequential(
-            nn.Conv1d(
-                in_channels=num_features,
-                out_channels=first_out,
-                kernel_size=3,
-                padding=1
-            ),
-            nn.SiLU(), # Maybe should switch back to ReLU?
-            nn.MaxPool1d(kernel_size=2),
-            nn.Conv1d(
-                in_channels=first_out,
-                out_channels=second_out,
-                kernel_size=3,
-                padding=1
-            ),
-            nn.SiLU(),
-            #nn.MaxPool1d(kernel_size=2)
-            nn.AdaptiveAvgPool1d(temporal_resolution)
-        )
-
-        with torch.no_grad():
-            input = torch.zeros(1, num_features, window_size)
-            conv_out = self.cnn_layers(input)
-            flattened_size = conv_out.view(1, -1).shape[1]
-
-        self.dense_layers = nn.Sequential(
-            nn.Flatten(),
-            nn.Linear(flattened_size, 256),
+        self.layers = nn.Sequential(
+            nn.Flatten(), # This allows us to turn the input [Batch, Window, Features] into [Batch, Flattened]
+            nn.Linear(flattened_input_size, 512),
+            nn.SiLU(), # Change to ReLU if CNN changes to SiLU
+            nn.Dropout(0.5),
+            nn.Linear(512, 256),
             nn.SiLU(),
             nn.Dropout(0.5),
-
-            nn.Linear(256, 128),
-            nn.SiLU(),
-            nn.Dropout(0.5),
-
-            nn.Linear(128, num_classes)
+            nn.Linear(256, num_classes)
         )
 
         self.__loss_function = nn.CrossEntropyLoss()
@@ -80,24 +32,8 @@ class CNN_MultiClass(nn.Module):
         self.to(self.__device_location)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        """
-        Forward pass for the CNN model.
-
-        The input tensor passes through convolutional layers followed by fully 
-        connected (dense) layers. The final layer applies a softmax activation
-        for multi-class classification.
-
-        Args:
-            x (torch.Tensor): Input tensor of shape (batch_size, channels, length).
-
-        Returns:
-            torch.Tensor: Output tensor of shape (batch_size, num_classes) with
-            softmax probabilities.
-        """
-        x = self.cnn_layers(x)
-        x = self.dense_layers(x)
-        return x
-
+        return self.layers(x)
+    
     def train_model(self, *,
         train_loader: torch.utils.data.DataLoader,
         validation_loader: torch.utils.data.DataLoader | None = None,
@@ -116,11 +52,12 @@ class CNN_MultiClass(nn.Module):
         self.to(self.__device_location)
         best_accuracy = 0
         smallEpoch = True if epochs <= 100 else False
-        currentPath = path if path else None
+        currentPath = path if path else 'IDS_DEFAULT_BEST.pth'
 
+        num_classes = self.layers[-1].out_features
         accuracy_metric = MulticlassAccuracy(
             task='multiclass',
-            num_classes=self.dense_layers[-1].out_features
+            num_classes=num_classes
         ).to(self.__device_location)
 
         if train_loader:
@@ -130,7 +67,7 @@ class CNN_MultiClass(nn.Module):
                 accuracy_metric.reset()
 
                 for inputs, targets in train_loader:
-                    inputs = inputs.transpose(1, 2).to(self.__device_location)
+                    inputs = inputs.to(self.__device_location)
                     targets = targets.to(self.__device_location)
 
                     if targets.ndim > 1:
@@ -155,13 +92,13 @@ class CNN_MultiClass(nn.Module):
                     val_loss = 0.
                     val_accuracy_metric = MulticlassAccuracy(
                         task='multiclass',
-                        num_classes=self.dense_layers[-1].out_features,
+                        num_classes=num_classes,
                     ).to(self.__device_location)
                     val_accuracy_metric.reset()
 
                     with torch.no_grad():
                         for inputs, targets in validation_loader:
-                            inputs = inputs.transpose(1, 2).to(self.__device_location)
+                            inputs = inputs.to(self.__device_location)
                             targets = targets.to(self.__device_location)
                             
                             if targets.ndim > 1:
@@ -181,12 +118,12 @@ class CNN_MultiClass(nn.Module):
                     if val_accuracy > best_accuracy:
                         best_accuracy = val_accuracy
                         self.__save_model(path=currentPath)
-                        print(f'[BEST MODEL SAVED] Validation Accuracy: {val_accuracy:.4f} at Epoch {epoch}')
+                        print(f'[BEST MODEL SAVED]: Validation Accuracy: {val_accuracy:.4f} at Epoch {epoch}')
 
                 if epoch % 10 == 0 or smallEpoch:
                     current_lr = self.__optimizer.param_groups[0]['lr']
                     output_string = \
-                        f'[TRAIN INFO] Current epoch: {epoch} | Train accuracy: {accuracy:.5f} | ' + \
+                        f'[TRAIN INFO]: Current epoch: {epoch} | Train accuracy: {accuracy:.5f} | ' + \
                         f'Train loss: {train_loss:.10f} | LR: {current_lr}'
                     if validation_loader:
                         output_string += \
@@ -195,11 +132,12 @@ class CNN_MultiClass(nn.Module):
                     print(output_string)
 
                 if not validation_loader:
-                    print('[WARNING] Please provide validation dataset in order to save the best parameters.')
+                    print('[WARNING]: Please provide validation dataset in order to save the best parameters.')
 
         else:
-            raise ValueError('[ERROR] Expected training data, but no training data provided. Try Again.')
+            raise ValueError('[ERROR]: Expected training data, but no training data provided. Try Again.')
         
+           
     def test_model(self,
         test_loader: torch.utils.data.DataLoader,
         path: str | None = None
@@ -220,18 +158,19 @@ class CNN_MultiClass(nn.Module):
         """
         if test_loader:
             try:
-                currentPath = path if path else None
+                currentPath = path if path else 'IDS_DEFAULT_BEST.pth'
                 self.__load_model(path=currentPath)
             except FileNotFoundError:
                 raise FileNotFoundError('[ERROR] No saved model found. Please train the model first.')
             
             self.eval()
             test_loss = 0.
+            num_classes = self.layers[-1].out_features
 
-            accuracy = MulticlassAccuracy(task='multiclass', num_classes=self.dense_layers[-1].out_features).to(self.__device_location)
-            precision = Precision(task='multiclass', num_classes=self.dense_layers[-1].out_features, average='macro').to(self.__device_location)
-            recall = Recall(task='multiclass', num_classes=self.dense_layers[-1].out_features, average='macro').to(self.__device_location)
-            f1_score = F1Score(task='multiclass', num_classes=self.dense_layers[-1].out_features, average='macro').to(self.__device_location)
+            accuracy = MulticlassAccuracy(task='multiclass', num_classes=num_classes).to(self.__device_location)
+            precision = Precision(task='multiclass', num_classes=num_classes, average='macro').to(self.__device_location)
+            recall = Recall(task='multiclass', num_classes=num_classes, average='macro').to(self.__device_location)
+            f1_score = F1Score(task='multiclass', num_classes=num_classes, average='macro').to(self.__device_location)
 
             accuracy.reset()
             precision.reset()
@@ -240,7 +179,7 @@ class CNN_MultiClass(nn.Module):
 
             with torch.no_grad():
                 for inputs, targets in test_loader:
-                    inputs = inputs.transpose(1, 2).to(self.__device_location)
+                    inputs = inputs.to(self.__device_location)
                     targets = targets.to(self.__device_location)
                     
                     if targets.ndim > 1:
@@ -263,7 +202,7 @@ class CNN_MultiClass(nn.Module):
             rec = recall.compute().item()
             f1 = f1_score.compute().item()
 
-            print(f'[TEST INFO] Test Loss: {test_loss:.10f} | Test Accuracy: {acc:.5f} | ' +
+            print(f'[TEST INFO]: Test Loss: {test_loss:.10f} | Test Accuracy: {acc:.5f} | ' +
                   f'Test Precision: {prec:.5f} | Test Recall: {rec:.5f} | Test F1 Score: {f1:.5f}')
             
             return {
@@ -276,7 +215,7 @@ class CNN_MultiClass(nn.Module):
         else:
             raise ValueError('[ERROR] Expected test data, but no test data provided. Try Again.')
         
-    def __load_model(self, path: str | None = 'IDS_CNN_BEST.pth') -> None:
+    def __load_model(self, path: str | None = 'IDS_MLP_BEST.pth') -> None:
         """
         Loads the pre-trained model weights from a file.
 
@@ -286,9 +225,9 @@ class CNN_MultiClass(nn.Module):
         """
         self.load_state_dict(torch.load(path, map_location=self.__device_location))
         self.eval()
-        print(f'[MODEL LOADED] Model loaded from {path}')
+        print(f'[MODEL LOADED]: Model loaded from {path}')
 
-    def __save_model(self, path: str | None = 'IDS_CNN_BEST.pth') -> None:
+    def __save_model(self, path: str | None = 'IDS_MLP_BEST.pth') -> None:
         """
         Saves the current model weights to a file.
 
@@ -296,4 +235,4 @@ class CNN_MultiClass(nn.Module):
         This allows reloading the model later without retraining.
         """
         torch.save(self.state_dict(), path)
-        print(f'[MODEL SAVED] Model saved to {path}')
+        print(f'[MODEL SAVED]: Model saved to {path}')

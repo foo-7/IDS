@@ -21,3 +21,12 @@ Afterwards, please install the environment:
 ```bash
 pip install -r requirements.txt
 ```
+
+
+## DELETE THIS LATER
+## IF WORKING ON WINDOWS
+1. Install WSL2 onto your machine
+2. Please install the WSL extension on Virtual Studio Code
+3. Find the >< icon within the bottom left of Virtual Studio Code
+4. Click it and select "Connect to WSL"
+5. VS Code will restart. Now, your, terminal, file explorer, and Python interpreter are all running "inside" Linux

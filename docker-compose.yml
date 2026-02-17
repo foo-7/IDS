@@ -1,0 +1,15 @@
+services:
+  drone-ids:
+    build: .
+    container_name: drone_research
+    volumes:
+      - .:/workspace
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    tty: true
+    stdin_open: true
