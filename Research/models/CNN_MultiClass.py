@@ -119,8 +119,8 @@ class CNN_MultiClass(nn.Module):
         currentPath = path if path else None
 
         accuracy_metric = MulticlassAccuracy(
-            task='multiclass',
-            num_classes=self.dense_layers[-1].out_features
+            num_classes=self.dense_layers[-1].out_features,
+            average='macro'
         ).to(self.__device_location)
 
         if train_loader:
@@ -154,8 +154,8 @@ class CNN_MultiClass(nn.Module):
                     self.eval()
                     val_loss = 0.
                     val_accuracy_metric = MulticlassAccuracy(
-                        task='multiclass',
                         num_classes=self.dense_layers[-1].out_features,
+                        average='macro'
                     ).to(self.__device_location)
                     val_accuracy_metric.reset()
 
@@ -228,7 +228,7 @@ class CNN_MultiClass(nn.Module):
             self.eval()
             test_loss = 0.
 
-            accuracy = MulticlassAccuracy(task='multiclass', num_classes=self.dense_layers[-1].out_features).to(self.__device_location)
+            accuracy = MulticlassAccuracy(num_classes=self.dense_layers[-1].out_features, average='macro').to(self.__device_location)
             precision = Precision(task='multiclass', num_classes=self.dense_layers[-1].out_features, average='macro').to(self.__device_location)
             recall = Recall(task='multiclass', num_classes=self.dense_layers[-1].out_features, average='macro').to(self.__device_location)
             f1_score = F1Score(task='multiclass', num_classes=self.dense_layers[-1].out_features, average='macro').to(self.__device_location)

@@ -54,10 +54,9 @@ class MLP_MultiClass(nn.Module):
         smallEpoch = True if epochs <= 100 else False
         currentPath = path if path else 'IDS_DEFAULT_BEST.pth'
 
-        num_classes = self.layers[-1].out_features
         accuracy_metric = MulticlassAccuracy(
-            task='multiclass',
-            num_classes=num_classes
+            num_classes=self.layers[-1].out_features,
+            average='macro'
         ).to(self.__device_location)
 
         if train_loader:
@@ -91,8 +90,8 @@ class MLP_MultiClass(nn.Module):
                     self.eval()
                     val_loss = 0.
                     val_accuracy_metric = MulticlassAccuracy(
-                        task='multiclass',
-                        num_classes=num_classes,
+                        num_classes=self.layers[-1].out_features,
+                        average='macro'
                     ).to(self.__device_location)
                     val_accuracy_metric.reset()
 
@@ -167,7 +166,7 @@ class MLP_MultiClass(nn.Module):
             test_loss = 0.
             num_classes = self.layers[-1].out_features
 
-            accuracy = MulticlassAccuracy(task='multiclass', num_classes=num_classes).to(self.__device_location)
+            accuracy = MulticlassAccuracy(num_classes=self.layers[-1].out_features, average='macro').to(self.__device_location)
             precision = Precision(task='multiclass', num_classes=num_classes, average='macro').to(self.__device_location)
             recall = Recall(task='multiclass', num_classes=num_classes, average='macro').to(self.__device_location)
             f1_score = F1Score(task='multiclass', num_classes=num_classes, average='macro').to(self.__device_location)
